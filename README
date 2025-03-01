@@ -1,4 +1,4 @@
-Scopul acestei teme este simularea protocolului BitTorrent de partajare peer-to-peer de fis, iere, folosind MPI.
+Scopul acestei teme este simularea protocolului BitTorrent de partajare peer-to-peer de fisiere, folosind MPI.
 
 Structuri pe care le-am implementat:
 SegmentSwarm - structura ce reprezinta starea unui segment specific al unui fisier, tine evidenta segmentelor fisierelor, inclusiv lista de clienti (seeds)
