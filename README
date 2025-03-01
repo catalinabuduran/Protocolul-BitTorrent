@@ -1,0 +1,62 @@
+Structuri pe care le-am implementat:
+SegmentSwarm - structura ce reprezinta starea unui segment specific al unui fisier, tine evidenta segmentelor fisierelor, inclusiv lista de clienti (seeds)
+				care detin segmentul, numarul acestora si alte informatii necesare pentru coordonarea descarcarilor
+FileSwarm - tine evidenta segmentelor unui fisier
+DesiredFile - structura ce reprezinta un fisier pe care clientul doreste sa-l descarce, tine evidenta segmentelor primite, numarul total al acestora, precum
+			si informatiile necesare pentru fiecare segment in procesul de descarcare
+Client - structura ce reprezinta un client BitTorrent si toate fisierele pe care acesta le detine sau doreste sa le descarce
+
+Functii implementate
+getRoundRobinSeed -  functie ce selecteaza un seed din lista de seeds pentru un segment specific, folosind o metoda Round Robin
+				  				- verifica daca exista seeds disponibili pentru segment si calculeaza urmatorul seed utilizand metoda Round Robin
+save_info_client_file - creeaza/actualizeaza un fisier client specific unui segment de fisier
+									 - creeaza un nume unic pentru fisier pe baza rangului clientului si a numelui fisierului; deschide fisierul in modul scriere sau adaugare, in functie de segment_index
+									 si apoi scrie hash-ul segmentului-ului in fisier 
+send_request_to_tracker - trimite o cerere catre tracker pentru a obtine informatii despre un fisier
+												- trimite comanda req seeds catre tracker folosind MPI si numele fisierului catre tracker
+receive_file_info_from_tracker - primeste informatii despre segmentele unui fisier de la tracker
+															- primeste numarul total de segmente de la tracker, verifica daca e valid, itereaza prin segmente si primeste informatiile despre fiecare segment
+send_segment_request_to_seed - trimite o cerere catre un seed pentru descarcarea unui segment de fisier
+													- selecteaza un seed disponibil folosind functia getRoundRobinSeed, daca e valid, trimite cererea de hash pentru segmentul respectiv catre seed,
+													numele fisierului si indexul segmentului
+receive_segment_from_seed - primeste un segment de la un seed si actualizeaza structura clientului cu informatiile primite
+												- primeste hash-ul segmentului-ului de la seed prin MPI si actualizeaza structura clientului: salveaza seed-ul, incrementeaza numarul de segmente primite,
+												stocheaza hash-ul si indexul segmentului
+send_ready_request_to_tracker - trimite un mesaj de notificare tracker-ului ca un client este pregatit pentru urmatoarea operatiune 
+getClientByRank - gaseste un client pe baza rangului sau
+download_thread_func - functie principala a unui thread de descarcare care gestioneaza intreaga operatiune de descarcare a fisierelor dorite de un client
+											- identifica clientul pe baza rangului, pentru fiecare fisier dorit trimite o cerere tracker-ului pentru a obtine informatii despre segmente,
+											apoi primeste informatiile despre segmentele fisierului. Pentru fiecare segment, trimite o cerere unui seed folosind send_segment_request_to_seed,
+											primeste segmentul utilizand receive_segment_from_seed, actualizeaza structura clientului. Daca toate segmentele unui fisier au fost descarcate, creeaza fisierul local cu
+											acestea si actualizeaza numarul de fisiere complet descarcate. Daca au fost descarcate 10 segmente de la ultima actualizare, trimite o cerere de actualizare catre tracker.
+											Dupa descarcarea tuturor fisierelor dorite, trimite o notificare catre tracker folosind send_ready_request_to_tracker
+handle_segment_request - gestioneaza o cerere de segment primita de la un alt peer/seed
+											 - primeste numele fisierului si indexul segmentului solicitat prin MPI, cauta fisierul in lista de fisiere detinute de client, daca fisierul este gasit
+											verifica validitatea indexului, trimite hash-ul segmentului catre peer-ul care a facut cererea si afiseaza un mesaj de confirmare
+upload_thread_func - thread-ul de upload gestioneaza cererile primite de la alti clienti
+										- identifica clientul pe baza rangului; intr-o bucla primeste tipul cererii de la un peer, daca cererea este pentru un segment (req hash), apeleaza handle_segment_request, 
+										daca cererea este de tip DONE, termina executia thread-ului.
+initialize_segment - initializeaza o structura SegmentSwarm cu informatiile despre un segment
+SendAckToAllClients - trimite un mesaj de confirmare (ACK) catre toti clientii din retea
+initializeTracker - initializeaza tracker-ul cu informatii despre fisierele detinute de clienti
+									- pentru fiecare client: primeste numarul de fisiere detinute de client
+									Pentru fiecare fisier: primeste numele fisierului si numarul de segmente 
+									Pentru fiecare segment: primeste hash-ul segmentului, initializeaza structura SegmentSwarm cu informatiile primite, adauga segmentul in structura FileSwarm, adauga fisierul complet in lista globala de fisiere a tracker-ului
+									si trimite un mesaj de confirmare (ACK) catre toti clientii
+send_info_to_client - trimite informatii despre segmentele unui fisier catre un client care a solicitat aceasta informatie
+										- cauta fisierul in lista de fisiere gestionate de tracker. Daca fisierul este gasit, trimite numarul total de segmente si pentru fiecare segment, trimite
+										numarul de seeds, indexul segmentului si lista de seeds
+allClientsFinished - verifica daca toti clientii si-au terminat cererile si procesele de descarcare
+sendFinishToPeers - trimite un mesaj de finalizare (DONE) catre toti clientii pentru a incheia procesul
+tracker - functia principala a tracker-ului care gestioneaza cererile de la clienti si sincronizarea acestora
+				- initializeaza tracker-ul cu informatii despre fisierele detinute de clienti; creeaza un array doneClients pentru a urmari starea fiecarui client,
+				intr-o bucla: primeste cereri de la clienti. Daca cererea este pentru seeds (req seeds), apeleaza send_info_to_client. Daca un client este gata (READY), actualizeaza starea sa si verifica daca toti clientii au terminat.
+				Cand toti clientii au terminat, trimite semnalul de finalizare
+ read_input_file - citeste fisierele si segmentele detinute de un client dintr-un fisier de intrare si trimite informatiile citite tracker-ului prin MPI
+ AddClient - adauga un nou client in lista globala de clienti
+ peerInitialize - initializeaza un client, citind informatiile din fisierul sau de intrare si sincronizandu-se cu tracker-ul
+ peer - functia principala a unui peer, care gestioneaza descarcarea si incarcarea fisierelor
+			- initializeaza clientul prin peerInitialize, creeaza doua thread-uri:
+						Unul pentru descarcare (download_thread_func)
+						Unul pentru upload (upload_thread_func), asteapta finalizarea thread-urilor, incheie executia
+
